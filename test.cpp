@@ -11,10 +11,10 @@ const size_t Tester::producerSize = 100;
 const size_t Tester::produceGap = 0;
 
 DataType* Tester::consumption = nullptr;
-std::atomic_int producerCount(0);
-std::atomic_int consumerCount(0);
-bool count[Tester::testSize];
-ConQueue* testQueue;
+std::atomic_int Tester::producerCount(0);
+std::atomic_int Tester::consumerCount(0);
+bool Tester::count[Tester::testSize];
+ConQueue* Tester::testQueue = nullptr;
 
 auto Tester::producer(size_t start) -> int {
     int t;
@@ -34,6 +34,20 @@ auto Tester::consumer() -> int {
             ;
         consumption[t] = tmp;
         std::this_thread::sleep_for(std::chrono::milliseconds(consumeGap));
+    }
+    return 0;
+}
+
+auto Tester::checkResult() -> int {
+    for (int i = 0; i < testSize; i++) {
+        size_t pos = consumption[i] % testSize;
+        if (!count[pos]) {
+            count[pos] = true;
+        } else {
+            std::cout << "Seem to be an error, " << pos << " is popped twice by " << consumption[i]
+                      << std::endl;
+            return -1;
+        }
     }
     return 0;
 }
@@ -59,15 +73,7 @@ auto Tester::runTest() -> int {
     }
     auto endTime = std::chrono::system_clock::now();
     auto elapsedTime = endTime - startTime;
-    for (int i = 0; i < testSize; i++) {
-        size_t pos = consumption[i] % testSize;
-        if (!count[pos]) {
-            count[pos] = true;
-        } else {
-            std::cout << "Seem to be an error, " << pos << " is popped twice by " << consumption[i] << std::endl;
-            return -1;
-        }
-    }
+    checkResult();
 
     std::cout << "Total time: " << std::chrono::duration_cast<std::chrono::milliseconds>(elapsedTime).count() << "ms"
               << std::endl;
