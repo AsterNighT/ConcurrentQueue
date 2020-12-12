@@ -1,5 +1,7 @@
+#pragma once
 #include "queue.hpp"
 
+using QueueType = MutexNonBlockListQueue;
 class Tester {
    public:
     static auto runTest() -> int;
