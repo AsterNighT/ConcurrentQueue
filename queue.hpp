@@ -1,6 +1,7 @@
 #pragma once
 #include <condition_variable>
 #include <mutex>
+#include <iostream>
 using DataType = long long;
 const DataType NullValue = -1;
 
@@ -8,6 +9,7 @@ class ConQueue {
    public:
     virtual auto get() -> DataType = 0;
     virtual auto put(DataType element) -> int = 0;
+    virtual auto print() -> void = 0;
 };
 
 class ListQueue : public ConQueue {
@@ -52,6 +54,9 @@ class MutexNonBlockListQueue : public ListQueue {
         return 0;
     }
 
+    auto print() -> void override {
+        std::cout << "Non blocking - mutex - list based queue" << std::endl;
+    }
    private:
     std::mutex readLock;
     std::mutex writeLock;

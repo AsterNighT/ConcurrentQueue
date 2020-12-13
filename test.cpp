@@ -6,9 +6,9 @@
 #include <thread>
 size_t Tester::testSize = 1000000;
 size_t Tester::consumerSize = 100;
-size_t Tester::consumeGap = 0;
+size_t Tester::consumerGap = 0;
 size_t Tester::producerSize = 100;
-size_t Tester::produceGap = 0;
+size_t Tester::producerGap = 0;
 
 DataType* Tester::consumption = nullptr;
 std::atomic_int Tester::producerCount(0);
@@ -21,7 +21,7 @@ auto Tester::producer(size_t start) -> int {
     while ((t = producerCount++) < testSize) {
         while (testQueue->put(DataType(start + t)) == -1)
             ;
-        std::this_thread::sleep_for(std::chrono::milliseconds(produceGap));
+        std::this_thread::sleep_for(std::chrono::milliseconds(producerGap));
     }
     return 0;
 }
@@ -33,7 +33,7 @@ auto Tester::consumer() -> int {
         while ((tmp = testQueue->get()) == NullValue)
             ;
         consumption[t] = tmp;
-        std::this_thread::sleep_for(std::chrono::milliseconds(consumeGap));
+        std::this_thread::sleep_for(std::chrono::milliseconds(consumerGap));
     }
     return 0;
 }
@@ -52,12 +52,14 @@ auto Tester::checkResult() -> int {
     return 0;
 }
 
-auto Tester::runTest(ConQueue* _queue, size_t _testSize, size_t _consumerSize, size_t _producerSize)
-    -> int {
+auto Tester::runTest(ConQueue* _queue, size_t _testSize, size_t _producerSize, size_t _producerGap,
+                     size_t _consumerSize, size_t _consumerGap) -> int {
     testQueue = _queue;
     testSize = _testSize;
     consumerSize = _consumerSize;
+    consumerGap = _consumerGap;
     producerSize = _producerSize;
+    producerGap = _producerGap;
     consumption = new DataType[testSize];
     count = new bool[testSize];
     consumerCount = 0;
@@ -81,7 +83,7 @@ auto Tester::runTest(ConQueue* _queue, size_t _testSize, size_t _consumerSize, s
     auto endTime = std::chrono::system_clock::now();
     auto elapsedTime = endTime - startTime;
     checkResult();
-
+    testQueue->print();
     std::cout << "Total time: "
               << std::chrono::duration_cast<std::chrono::milliseconds>(elapsedTime).count()
               << "ms with " << _producerSize << " producers and " << _consumerSize << " consumers."
