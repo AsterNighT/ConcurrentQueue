@@ -4,16 +4,16 @@
 #include <chrono>
 #include <iostream>
 #include <thread>
-const size_t Tester::testSize = 1000000;
-const size_t Tester::consumerSize = 100;
-const size_t Tester::consumeGap = 0;
-const size_t Tester::producerSize = 100;
-const size_t Tester::produceGap = 0;
+size_t Tester::testSize = 1000000;
+size_t Tester::consumerSize = 100;
+size_t Tester::consumeGap = 0;
+size_t Tester::producerSize = 100;
+size_t Tester::produceGap = 0;
 
 DataType* Tester::consumption = nullptr;
 std::atomic_int Tester::producerCount(0);
 std::atomic_int Tester::consumerCount(0);
-bool Tester::count[Tester::testSize];
+bool* Tester::count = nullptr;
 ConQueue* Tester::testQueue = nullptr;
 
 auto Tester::producer(size_t start) -> int {
@@ -52,10 +52,17 @@ auto Tester::checkResult() -> int {
     return 0;
 }
 
-auto Tester::runTest() -> int {
-    testQueue = new QueueType();
+auto Tester::runTest(ConQueue* _queue, size_t _testSize, size_t _consumerSize, size_t _producerSize)
+    -> int {
+    testQueue = _queue;
+    testSize = _testSize;
+    consumerSize = _consumerSize;
+    producerSize = _producerSize;
     consumption = new DataType[testSize];
-    std::fill(count, count + producerSize, false);
+    count = new bool[testSize];
+    consumerCount = 0;
+    producerCount = 0; 
+    std::fill(count, count + testSize, false);
     auto startTime = std::chrono::system_clock::now();
     std::thread* consumers[consumerSize];
     std::thread* producers[producerSize];
@@ -75,8 +82,11 @@ auto Tester::runTest() -> int {
     auto elapsedTime = endTime - startTime;
     checkResult();
 
-    std::cout << "Total time: " << std::chrono::duration_cast<std::chrono::milliseconds>(elapsedTime).count() << "ms"
+    std::cout << "Total time: "
+              << std::chrono::duration_cast<std::chrono::milliseconds>(elapsedTime).count()
+              << "ms with " << _producerSize << " producers and " << _consumerSize << " consumers."
               << std::endl;
     delete[] consumption;
+    delete[] count;
     return 0;
 }
