@@ -143,15 +143,17 @@ class CasNonBlockListQueue : public AtomicListQueue {
     auto get() -> DataType override {
         Node* p;
         do {
-            p = head.load();
+            p = head.load(std::memory_order_relaxed);
             if (p->next == nullptr) {
                 return NullValue;
             }
-        } while (!std::atomic_compare_exchange_weak(&head, &p, p->next));
-        DataType v = p->next.load()->value;
+        } while (!std::atomic_compare_exchange_weak_explicit(
+            &head, &p, p->next, std::memory_order_relaxed, std::memory_order_relaxed));
+        DataType v = p->next.load(std::memory_order_relaxed)->value;
         // delete p;
         // Memory leak here, hard to find a proper time to delete p, using sharedptr
         // may be a good choice
+        // UPD no shared_ptr cannot be atomic
         return v;
     }
     auto put(DataType element) -> int override {
@@ -159,11 +161,12 @@ class CasNonBlockListQueue : public AtomicListQueue {
         Node* p;
         Node* null = nullptr;
         do {
-            p = tail.load();
+            p = tail.load(std::memory_order_relaxed);
             null = nullptr;
-        } while (!std::atomic_compare_exchange_weak(&p->next, &null, t));
+        } while (!std::atomic_compare_exchange_weak_explicit(
+            &p->next, &null, t, std::memory_order_relaxed, std::memory_order_relaxed));
 
-        tail.store(t);
+        tail.store(t, std::memory_order_relaxed);
         return 0;
     }
 
@@ -230,26 +233,28 @@ class PaperCasNonBlockListQueue : public ConQueue {
         CASPointer pTail;
         CASPointer pNext;
         while (true) {
-            pHead = head.load();
-            pTail = tail.load();
-            pNext = head.load().ptr->next.load();
-            if (head.load() == pHead) {
+            pHead = head.load(std::memory_order_relaxed);
+            pTail = tail.load(std::memory_order_relaxed);
+            pNext = head.load(std::memory_order_relaxed).ptr->next.load(std::memory_order_relaxed);
+            if (head.load(std::memory_order_relaxed) == pHead) {
                 if (pHead.ptr == pTail.ptr) {
                     if (pNext.ptr == nullptr)
                         return NullValue;
                     else
-                        std::atomic_compare_exchange_weak(&tail, &pTail,
-                                                          CASPointer(pNext.ptr, globalCounter++));
+                        std::atomic_compare_exchange_weak_explicit(
+                            &tail, &pTail, CASPointer(pNext.ptr, pTail.count + 1),
+                            std::memory_order_relaxed, std::memory_order_relaxed);
                 } else {
                     v = pNext.ptr->value;
-                    if (std::atomic_compare_exchange_weak(&head, &pHead,
-                                                          CASPointer(pNext.ptr, globalCounter++)))
+                    if (std::atomic_compare_exchange_weak_explicit(
+                            &head, &pHead, CASPointer(pNext.ptr, pHead.count + 1),
+                            std::memory_order_relaxed, std::memory_order_relaxed))
                         break;
                 }
             }
         }
         // delete pHead.ptr; // ?????
-        // https://stackoverflow.com/questions/40818465/explain-michael-scott-lock-free-queue-alorigthm 
+        // https://stackoverflow.com/questions/40818465/explain-michael-scott-lock-free-queue-alorigthm
         // Great paper :D
         return v;
     }
@@ -262,18 +267,22 @@ class PaperCasNonBlockListQueue : public ConQueue {
             pNext = tail.load().ptr->next.load();
             if (tail.load() == pTail) {
                 if (pNext.ptr == nullptr) {
-                    if (std::atomic_compare_exchange_weak(&tail.load().ptr->next, &pNext,
-                                                          CASPointer(t, globalCounter++))) {
+                    if (std::atomic_compare_exchange_weak_explicit(
+                            &tail.load().ptr->next, &pNext, CASPointer(t, pNext.count+1),
+                            std::memory_order_relaxed, std::memory_order_relaxed)) {
                         break;
                     }
 
                 } else {
-                    std::atomic_compare_exchange_weak(&tail, &pTail,
-                                                      CASPointer(pNext.ptr, globalCounter++));
+                    std::atomic_compare_exchange_weak_explicit(
+                        &tail, &pTail, CASPointer(pNext.ptr, pTail.count+1),
+                        std::memory_order_relaxed, std::memory_order_relaxed);
                 }
             }
         }
-        std::atomic_compare_exchange_weak(&tail, &pTail, CASPointer(t, globalCounter++));
+        std::atomic_compare_exchange_weak_explicit(&tail, &pTail, CASPointer(t, pTail.count+1),
+                                                   std::memory_order_relaxed,
+                                                   std::memory_order_relaxed);
         return 0;
     }
 
