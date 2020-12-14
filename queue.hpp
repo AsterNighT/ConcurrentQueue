@@ -203,3 +203,85 @@ class MutexBlockArrayQueue : public ArrayQueue {
     std::condition_variable isEmpty;
     std::condition_variable isFull;
 };
+
+class PaperCasNonBlockListQueue : public ConQueue {
+   public:
+    struct Node;
+    struct CASPointer {
+        Node* ptr;
+        size_t count;
+        CASPointer(Node* _ptr = nullptr, size_t _count = 0) : ptr(_ptr), count(_count) {}
+        bool operator==(CASPointer& b) {
+            return ptr == b.ptr && count == b.count;
+        }
+    };
+    struct Node {
+        DataType value;
+        std::atomic<CASPointer> next;
+        Node(DataType _value) : value(_value), next() {}
+    };
+    PaperCasNonBlockListQueue() {
+        Node* p = new Node(NullValue);
+        head = tail = CASPointer(p, 0);
+    }
+    auto get() -> DataType override {
+        DataType v;
+        CASPointer pHead;
+        CASPointer pTail;
+        CASPointer pNext;
+        while (true) {
+            pHead = head.load();
+            pTail = tail.load();
+            pNext = head.load().ptr->next.load();
+            if (head.load() == pHead) {
+                if (pHead.ptr == pTail.ptr) {
+                    if (pNext.ptr == nullptr)
+                        return NullValue;
+                    else
+                        std::atomic_compare_exchange_weak(&tail, &pTail,
+                                                          CASPointer(pNext.ptr, globalCounter++));
+                } else {
+                    v = pNext.ptr->value;
+                    if (std::atomic_compare_exchange_weak(&head, &pHead,
+                                                          CASPointer(pNext.ptr, globalCounter++)))
+                        break;
+                }
+            }
+        }
+        // delete pHead.ptr; // ?????
+        // https://stackoverflow.com/questions/40818465/explain-michael-scott-lock-free-queue-alorigthm 
+        // Great paper :D
+        return v;
+    }
+    auto put(DataType element) -> int override {
+        Node* t = new Node(element);
+        CASPointer pTail;
+        CASPointer pNext;
+        while (true) {
+            pTail = tail.load();
+            pNext = tail.load().ptr->next.load();
+            if (tail.load() == pTail) {
+                if (pNext.ptr == nullptr) {
+                    if (std::atomic_compare_exchange_weak(&tail.load().ptr->next, &pNext,
+                                                          CASPointer(t, globalCounter++))) {
+                        break;
+                    }
+
+                } else {
+                    std::atomic_compare_exchange_weak(&tail, &pTail,
+                                                      CASPointer(pNext.ptr, globalCounter++));
+                }
+            }
+        }
+        std::atomic_compare_exchange_weak(&tail, &pTail, CASPointer(t, globalCounter++));
+        return 0;
+    }
+
+    auto print() -> void override {
+        std::cout << "Paper - Non blocking - CAS - list based queue" << std::endl;
+    }
+
+   private:
+    std::atomic<CASPointer> head, tail;
+    std::atomic<size_t> globalCounter;
+};
