@@ -154,6 +154,7 @@ class CasNonBlockListQueue : public AtomicListQueue {
         // Memory leak here, hard to find a proper time to delete p, using sharedptr
         // may be a good choice
         // UPD no shared_ptr cannot be atomic
+        // UPD there should be an atomic<shared_ptr> but it just do not work right here 
         return v;
     }
     auto put(DataType element) -> int override {
@@ -210,7 +211,7 @@ class MutexBlockArrayQueue : public ArrayQueue {
 class PaperCasNonBlockListQueue : public ConQueue {
    public:
     struct Node;
-    struct CASPointer {
+    struct CASPointer { // Unluckily this is not atomic_lock_free, so this will be considerably much slower
         Node* ptr;
         size_t count;
         CASPointer(Node* _ptr = nullptr, size_t _count = 0) : ptr(_ptr), count(_count) {}

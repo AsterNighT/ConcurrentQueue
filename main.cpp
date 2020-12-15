@@ -1,5 +1,6 @@
 #include "queue.hpp"
 #include "test.hpp"
+
 auto main() -> int {
     auto q1 = new MutexNonBlockListQueue();
     Tester::runTest(q1, 10000000, 12, 0, 12, 0);
